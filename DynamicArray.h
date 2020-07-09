@@ -7,11 +7,14 @@ typedef struct DynamicArray
     int     count;
     int     capacity;
     int     elementSize;
-    void**  elements;
+    void*   elements;
 } DynamicArray;
 
 DynamicArray*   daNew(int capacity, int elementSize);
 void            daFree(DynamicArray* array);
+
+void            daGet(DynamicArray* array, int index, void* outElement);
+void            daSet(DynamicArray* array, int index, const void* element);
 
 void            daPush(DynamicArray* array, const void* element);
 void            daPop(DynamicArray* array, void* outElement);
