@@ -36,7 +36,7 @@ void daPush(DynamicArray* array, const void* element)
     }
 }
 
-void daGet(DynamicArray* array, int index, void* outElement)
+void daGet(const DynamicArray* array, int index, void* outElement)
 {
     assert(index > -1 && index < array->count);
     
