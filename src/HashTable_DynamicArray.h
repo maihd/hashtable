@@ -1,5 +1,7 @@
 #pragma once
 
+#include "DynamicArray.h"
+
 typedef struct HashTableNode
 {
     void* key;
@@ -7,8 +9,6 @@ typedef struct HashTableNode
 
     void* value;
     int   valueSize;
-
-    struct HashTableNode* next;    
 } HashTableNode;
 
 typedef struct HashTable
@@ -16,7 +16,7 @@ typedef struct HashTable
     int size;
     int count;
     int (*hashFn)(void*, int, int);
-    HashTableNode* entries[1];
+    DynamicArray* entries[1];
 } HashTable;
 
 typedef struct HashTableIter
@@ -29,8 +29,9 @@ typedef struct HashTableIter
     struct
     {
         HashTable*      table;
-        HashTableNode*  entry;
+        DynamicArray*   entry;
         int             index;
+        int             entryIndex;
     } internal;
 } HashTableIter;
 

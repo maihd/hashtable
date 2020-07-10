@@ -1,4 +1,4 @@
-#include "HashTable.h"
+#include "HashTable_DynamicArray.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -25,15 +25,23 @@ void htFree(HashTable* table)
 {
     for (int i = 0, n = table->size; i < n; i++)
     {
-        HashTableNode* node = table->entries[i];
-        while (node)
+        DynamicArray* entry = table->entries[i];
+        if (entry)
         {
-            HashTableNode* next = node->next;
+            for (int j = 0, m = entry->count; j < m; j++)
+            {
+                HashTableNode* node;
+                daGet(entry, j, &node);
 
-            free(node->key);
-            free(node->value);
+                if (node)
+                {
+                    free(node->value);
+                    free(node->key);
+                    free(node);
+                }
+            }
 
-            node = next;
+            daFree(entry);
         }
     }
 
@@ -43,35 +51,30 @@ void htFree(HashTable* table)
 void htRemove(HashTable* table, void* key, int keySize)
 {
     int entryIndex = table->hashFn(key, keySize, table->size);
-    HashTableNode* entry = table->entries[entryIndex];
+    DynamicArray* entry = table->entries[entryIndex];
     if (entry)
     {
-        HashTableNode* currNode = entry;
-        HashTableNode* prevNode = NULL;
-        while (currNode)
+        for (int i = 0, n = entry->count; i < n; i++)
         {
-            if (currNode->keySize == keySize && memcmp(key, currNode->key, keySize) == 0)
+            HashTableNode* node;
+            daGet(entry, i, &node);
+
+            if (node && node->keySize == keySize && memcmp(key, node->key, keySize) == 0)
             {
+                if (i < entry->count - 1)
+                {
+                    HashTableNode* lastNode;
+                    daGet(entry, entry->count - 1, &lastNode);
+                    daSet(entry, i, &lastNode);
+                }
+
                 table->count--;
-
-                free(currNode->key);
-                free(currNode->value);
-
-                if (prevNode)
-                {
-                    prevNode->next = currNode->next;
-                }
-                else
-                {
-                    table->entries[entryIndex] = currNode->next;
-                }
-
-                free(currNode);
-                break;
+                entry->count--;
+                
+                free(node->value);
+                free(node->key);
+                free(node);
             }
-
-            prevNode = currNode;
-            currNode = currNode->next;
         }
     }
 }
@@ -79,20 +82,19 @@ void htRemove(HashTable* table, void* key, int keySize)
 void* htSearch(HashTable* table, void* key, int keySize)
 {
     int entryIndex = table->hashFn(key, keySize, table->size);
-    HashTableNode* entry = table->entries[entryIndex];
-    if (!entry)
+    DynamicArray* entry = table->entries[entryIndex];
+    if (entry)
     {
-        return NULL;
-    }
-
-    HashTableNode* node = entry;
-    while (node)
-    {
-        if (node->keySize == keySize && memcmp(key, node->key, keySize) == 0)
+        for (int i = 0, n = entry->count; i < n; i++)
         {
-            return node->value;
+            HashTableNode* node;
+            daGet(entry, i, &node);
+
+            if (node->keySize == keySize && memcmp(key, node->key, keySize) == 0)
+            {
+                return node->value;
+            }
         }
-        node = node->next;
     }
 
     return NULL;
@@ -101,60 +103,55 @@ void* htSearch(HashTable* table, void* key, int keySize)
 void* htInsert(HashTable* table, void* key, int keySize, void* value, int valueSize)
 {
     int entryIndex = table->hashFn(key, keySize, table->size);
-    HashTableNode* entry = table->entries[entryIndex];
-    if (entry)
+    DynamicArray* entry = table->entries[entryIndex];
+
+    HashTableNode* currNode = NULL;
+    if (!entry)
     {
-        HashTableNode* currNode = entry;
-        HashTableNode* prevNode = NULL;
-        while (currNode)
+        table->entries[entryIndex] = entry = daNew(8, sizeof(HashTableNode*));
+        if (!entry)
         {
-            if (currNode->keySize == keySize && memcmp(key, currNode->key, keySize) == 0)
-            {
-                free(currNode->value);
-
-                currNode->value = malloc(valueSize);
-                currNode->valueSize = valueSize;
-                
-                memcpy(currNode->value, value, valueSize);
-                return currNode->value;
-            }
-
-            prevNode = currNode;
-            currNode = currNode->next;
+            return NULL;
         }
-
-        HashTableNode* newNode = malloc(sizeof(HashTableNode));
-        newNode->key = malloc(keySize);
-        newNode->keySize = keySize;
-        newNode->value = malloc(valueSize);
-        newNode->valueSize = valueSize;
-        newNode->next = NULL;
-
-        if (prevNode)
-        {
-            prevNode->next = newNode;
-        }
-
-        memcpy(newNode->key, key, keySize);
-        memcpy(newNode->value, value, valueSize);
-        return newNode->value;
     }
     else
     {
-        entry = malloc(sizeof(HashTableNode));
-        entry->key = malloc(keySize);
-        entry->keySize = keySize;
-        entry->value = malloc(valueSize);
-        entry->valueSize = valueSize;
-        entry->next = NULL;
+        for (int i = 0, n = entry->count; i < n; i++)
+        {
+            HashTableNode* node;
+            daGet(entry, i, &node);
 
-        table->count++;
-        table->entries[entryIndex] = entry;
-
-        memcpy(entry->key, key, keySize);
-        memcpy(entry->value, value, valueSize);
-        return entry->value;
+            if (node->keySize == keySize && memcmp(key, node->key, keySize) == 0)
+            {
+                currNode = node;
+                break;
+            }
+        }
     }
+
+    if (!currNode)
+    {
+        currNode = malloc(sizeof(HashTableNode));
+        currNode->key = malloc(keySize);
+        currNode->keySize = keySize; 
+        currNode->value = NULL;
+        currNode->valueSize = 0;
+        memcpy(currNode->key, key, keySize);
+
+        daPush(entry, &currNode);
+        table->count++;
+    }
+
+    if (!currNode->value || currNode->valueSize != valueSize)
+    {
+        free(currNode->value);
+
+        currNode->value = malloc(valueSize);
+        currNode->valueSize = valueSize;
+    }
+
+    memcpy(currNode->value, value, valueSize);
+    return currNode->value;
 }
 
 int htHash(void* key, int keySize, int tableSize)
@@ -175,25 +172,26 @@ void htIteration(HashTable* table, HashTableIter* iter)
     iter->internal.table = table;
     iter->internal.entry = NULL;
     iter->internal.index = -1;
+    iter->internal.entryIndex = -1;
 }
 
 int htNext(HashTableIter* iter)
 {
     HashTable* table = iter->internal.table;
 
-    int index = iter->internal.index;
-    if (iter->internal.entry == NULL || iter->internal.entry->next == NULL)
+    int entryIndex = iter->internal.entryIndex;
+    if (iter->internal.entry == NULL || iter->internal.index < 0 || iter->internal.index >= iter->internal.entry->count - 1)
     {
-        index++;
-        while (table->entries[index] == NULL && index < table->size)
+        entryIndex++;
+        while (iter->internal.table->entries[entryIndex] == NULL && entryIndex < table->size)
         {
-            index++;
+            entryIndex++;
         }
 
-        if (index >= table->size)
+        if (entryIndex >= table->size)
         {
             iter->internal.entry = NULL;
-            iter->internal.index = table->size;
+            iter->internal.entryIndex = entryIndex;
 
             iter->key = NULL;
             iter->keySize = 0;
@@ -205,24 +203,23 @@ int htNext(HashTableIter* iter)
         }
         else
         {
-            iter->internal.entry = table->entries[index];
-            iter->internal.index = index;
-
-            iter->key = iter->internal.entry->key;
-            iter->value = iter->internal.entry->value;
-            iter->keySize = iter->internal.entry->keySize;
-            iter->valueSize = iter->internal.entry->valueSize;
-
-            return 1;
+            iter->internal.index = 0;
+            iter->internal.entry = table->entries[entryIndex];
+            iter->internal.entryIndex = entryIndex;
         }
     }
     else
     {
-        iter->internal.entry = iter->internal.entry->next;
-        iter->key = iter->internal.entry->key;
-        iter->value = iter->internal.entry->value;
-        iter->keySize = iter->internal.entry->keySize;
-        iter->valueSize = iter->internal.entry->valueSize;
-        return 1;
+        iter->internal.index++;
     }
+    
+    HashTableNode* node;
+    daGet(iter->internal.entry, iter->internal.index, &node);
+
+    iter->key = node->key;
+    iter->value = node->value;
+    iter->keySize = node->keySize;
+    iter->valueSize = node->valueSize;
+
+    return 1;
 }

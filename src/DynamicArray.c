@@ -51,7 +51,7 @@ void daSet(DynamicArray* array, int index, const void* element)
     {
         if (!daEnsure(array, index + 1))
         {
-            return false;
+            return;
         }
 
         array->count = index + 1;
