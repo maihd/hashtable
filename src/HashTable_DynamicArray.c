@@ -1,8 +1,42 @@
-#include "HashTable_DynamicArray.h"
+#include "../include/HashTable.h"
+#include "DynamicArray.h"
 
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
+
+typedef struct HashTableNode
+{
+    void* key;
+    int   keySize;
+
+    void* value;
+    int   valueSize;
+} HashTableNode;
+
+struct HashTable
+{
+    int size;
+    int count;
+    int (*hashFn)(void*, int, int);
+    DynamicArray* entries[1];
+};
+
+struct HashTableIter
+{
+    void* key;
+    int   keySize;
+    void* value;
+    int   valueSize;
+
+    struct
+    {
+        HashTable*      table;
+        DynamicArray*   entry;
+        int             index;
+        int             entryIndex;
+    } internal;
+};
 
 HashTable* htNew(int size, int (*hashFn)(void*, int, int))
 {
@@ -167,15 +201,23 @@ int htHash(void* key, int keySize, int tableSize)
     return (sum % tableSize);
 }
 
-void htIteration(HashTable* table, HashTableIter* iter)
+HashTableIter* htIterNew(HashTable* table)
 {
+    HashTableIter* iter = malloc(sizeof(*iter));
     iter->internal.table = table;
     iter->internal.entry = NULL;
     iter->internal.index = -1;
     iter->internal.entryIndex = -1;
+
+    return iter;
 }
 
-int htNext(HashTableIter* iter)
+void htIterFree(HashTableIter* iter)
+{
+    free(iter);
+}
+
+int htIterNext(HashTableIter* iter)
 {
     HashTable* table = iter->internal.table;
 
@@ -222,4 +264,14 @@ int htNext(HashTableIter* iter)
     iter->valueSize = node->valueSize;
 
     return 1;
+}
+
+void* htIterGetKey(HashTableIter* iter)
+{
+    return iter->key;
+}
+
+void* htIterGetValue(HashTableIter* iter)
+{
+    return iter->value;
 }

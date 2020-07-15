@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "../src/HashTable_DynamicArray.h"
+#include "../include/HashTable.h"
 
 int main(void)
 {
@@ -14,13 +14,13 @@ int main(void)
     dictInsert(testTable, "Firefox", "Web Browser");
 
     printf("Iteration values of HashTable\n");
-    HashTableIter iter;
-    htIteration(testTable, &iter);
-    while (htNext(&iter))
+    HashTableIter* iter = htIterNew(testTable);
+    while (htIterNext(iter))
     {
-        printf("%s => %s\n", (char*)iter.key, (char*)iter.value);
+        printf("%s => %s\n", (char*)htIterGetKey(iter), (char*)htIterGetValue(iter));
     }
 
+    htIterFree(iter);
     htFree(testTable);
     return 0;
 }

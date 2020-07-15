@@ -1,8 +1,42 @@
-#include "HashTable.h"
+#include "../include/HashTable.h"
 
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
+
+typedef struct HashTableNode
+{
+    void* key;
+    int   keySize;
+
+    void* value;
+    int   valueSize;
+
+    struct HashTableNode* next;    
+} HashTableNode;
+
+struct HashTable
+{
+    int size;
+    int count;
+    int (*hashFn)(void*, int, int);
+    HashTableNode* entries[1];
+};
+
+struct HashTableIter
+{
+    void* key;
+    int   keySize;
+    void* value;
+    int   valueSize;
+
+    struct
+    {
+        HashTable*      table;
+        HashTableNode*  entry;
+        int             index;
+    } internal;
+};
 
 HashTable* htNew(int size, int (*hashFn)(void*, int, int))
 {
@@ -170,14 +204,27 @@ int htHash(void* key, int keySize, int tableSize)
     return (sum % tableSize);
 }
 
-void htIteration(HashTable* table, HashTableIter* iter)
+HashTableIter* htIterNew(HashTable* table)
 {
+    HashTableIter* iter = malloc(sizeof(*iter));
+    iter->key = NULL;
+    iter->keySize = 0;
+
+    iter->value = NULL;
+    iter->valueSize = 0;
+
     iter->internal.table = table;
     iter->internal.entry = NULL;
     iter->internal.index = -1;
+    return iter;
 }
 
-int htNext(HashTableIter* iter)
+void htIterFree(HashTableIter* iter)
+{
+    free(iter);
+}
+
+int htIterNext(HashTableIter* iter)
 {
     HashTable* table = iter->internal.table;
 
@@ -225,4 +272,14 @@ int htNext(HashTableIter* iter)
         iter->valueSize = iter->internal.entry->valueSize;
         return 1;
     }
+}
+
+void* htIterGetKey(HashTableIter* iter)
+{
+    return iter->key;
+}
+
+void* htIterGetValue(HashTableIter* iter)
+{
+    return iter->value;
 }
