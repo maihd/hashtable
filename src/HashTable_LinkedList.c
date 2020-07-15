@@ -1,4 +1,5 @@
 #include "../include/HashTable.h"
+#include "Obstack.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -20,6 +21,8 @@ struct HashTable
     int size;
     int count;
     int (*hashFn)(void*, int, int);
+
+    Obstack*       nodePool;
     HashTableNode* entries[1];
 };
 
@@ -46,6 +49,7 @@ HashTable* htNew(int size, int (*hashFn)(void*, int, int))
     table->size = size;
     table->count = 0;
     table->hashFn = hashFn ? hashFn : &htHash;
+    table->nodePool = obNew(sizeof(HashTableNode), 64);
     
     for (int i = 0; i < size; i++)
     {
@@ -71,6 +75,7 @@ void htFree(HashTable* table)
         }
     }
 
+    obFree(table->nodePool);
     free(table);
 }
 
@@ -100,7 +105,7 @@ void htRemove(HashTable* table, void* key, int keySize)
                     table->entries[entryIndex] = currNode->next;
                 }
 
-                free(currNode);
+                obRelease(table->nodePool, currNode);
                 break;
             }
 
@@ -134,6 +139,11 @@ void* htSearch(HashTable* table, void* key, int keySize)
 
 void* htInsert(HashTable* table, void* key, int keySize, void* value, int valueSize)
 {
+    if (!value)
+    {
+        return NULL;
+    }
+
     int entryIndex = table->hashFn(key, keySize, table->size);
     HashTableNode* entry = table->entries[entryIndex];
     if (entry)
@@ -157,7 +167,23 @@ void* htInsert(HashTable* table, void* key, int keySize, void* value, int valueS
             currNode = currNode->next;
         }
 
-        HashTableNode* newNode = malloc(sizeof(HashTableNode));
+        HashTableNode* newNode = obAcquire(table->nodePool);
+        if (!newNode)
+        {
+            Obstack* newPool = obNew(table->nodePool->objectSize, table->nodePool->objectCount);
+            if (newPool) 
+            {
+                newPool->next = table->nodePool;
+                table->nodePool = newPool;
+
+                newNode = obAcquire(newPool);
+            }
+            else
+            {
+                return NULL;
+            }
+        }
+
         newNode->key = malloc(keySize);
         newNode->keySize = keySize;
         newNode->value = malloc(valueSize);
@@ -175,7 +201,23 @@ void* htInsert(HashTable* table, void* key, int keySize, void* value, int valueS
     }
     else
     {
-        entry = malloc(sizeof(HashTableNode));
+        entry = obAcquire(table->nodePool);
+        if (!entry)
+        {
+            Obstack* newPool = obNew(table->nodePool->objectSize, table->nodePool->objectCount);
+            if (newPool) 
+            {
+                newPool->next = table->nodePool;
+                table->nodePool = newPool;
+                
+                entry = obAcquire(newPool);
+            }
+            else
+            {
+                return NULL;
+            }
+        }
+
         entry->key = malloc(keySize);
         entry->keySize = keySize;
         entry->value = malloc(valueSize);
