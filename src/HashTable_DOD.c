@@ -52,7 +52,7 @@ HashTable* htNew(int size, int (*hashFn)(void*, int, int))
 
 void htFree(HashTable* table)
 {
-    for (int i = 0, n = table->size; i < n; i++)
+    for (int i = 0, n = table->entries->count; i < n; i++)
     {
         HashTableEntry entry;
         daGet(table->entries, i, &entry);
@@ -162,14 +162,53 @@ void* htSearch(HashTable* table, void* key, int keySize)
 
 void* htInsert(HashTable* table, void* key, int keySize, void* value, int valueSize)
 {
-    int curr = indexOf(table, key, keySize, NULL, NULL);
+    int prev;
+    int hash;
+    int curr = indexOf(table, key, keySize, &hash, &prev);
     if (curr > -1)
     {
+        HashTableEntry entry;
+        daGet(table->entries, curr, &entry);
+
+        if (entry.valueSize != valueSize)
+        {
+            entry.value = malloc(valueSize);
+            entry.valueSize = valueSize;
+        }
+        memcpy(entry.value, value, valueSize);
+
+        daSet(table->entries, curr, &entry);
+        return entry.value;
     }
     else
     {
-        
+        curr = table->entries->count;
+        HashTableEntry entry;
+        entry.next = -1;
+        entry.key = malloc(keySize);
+        entry.keySize = keySize;
+        entry.value = malloc(valueSize);
+        entry.valueSize = valueSize;
+
+        memcpy(entry.key, key, keySize);
+        memcpy(entry.value, value, valueSize);
+        daPush(table->entries, &entry);
+
+        if (prev > -1)
+        {
+            HashTableEntry prevEntry;
+            daGet(table->entries, prev, &prevEntry);
+            prevEntry.next = curr;
+            daSet(table->entries, prev, &prevEntry);
+        }
+        else
+        {
+            table->hashs[hash] = curr;
+        }
+
+        return entry.value;
     }
+
     return NULL;
 }
 
@@ -200,9 +239,9 @@ void htIterFree(HashTableIter* iter)
     free(iter);
 }
 
-int htNext(HashTableIter* iter)
+int htIterNext(HashTableIter* iter)
 {
-    if (iter->index < iter->table->entries->count)
+    if (iter->index < iter->table->entries->count - 1)
     {
         iter->index++;
         return 1;
@@ -213,14 +252,28 @@ int htNext(HashTableIter* iter)
 
 void* htIterGetKey(HashTableIter* iter)
 {
-    HashTableEntry entry;
-    daGet(iter->table->entries, iter->index, &entry);
-    return entry.key;
+    if (iter->index < iter->table->entries->count)
+    {
+        HashTableEntry entry;
+        daGet(iter->table->entries, iter->index, &entry);
+        return entry.key;
+    }
+    else
+    {
+        return NULL;
+    }
 }
 
 void* htIterGetValue(HashTableIter* iter)
 {
-    HashTableEntry entry;
-    daGet(iter->table->entries, iter->index, &entry);
-    return entry.value;
+    if (iter->index < iter->table->entries->count)
+    {
+        HashTableEntry entry;
+        daGet(iter->table->entries, iter->index, &entry);
+        return entry.value;
+    }
+    else
+    {
+        return NULL;
+    }
 }
